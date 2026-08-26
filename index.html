@@ -15,11 +15,11 @@ label{display:block;color:#aebbd0;font-size:12px;margin:10px 0 6px}
 input,select,button{width:100%;border-radius:11px;padding:13px;border:1px solid #34445c;background:#0c1523;color:#fff;font-size:15px}
 button{font-weight:bold;cursor:pointer}.primary{background:#1769e0;border-color:#1769e0}.danger{background:#8e2530;border-color:#8e2530}
 video{width:100%;aspect-ratio:4/3;object-fit:cover;background:#02060b;border-radius:13px}
-.preview{position:relative}.scan{position:absolute;left:4%;right:4%;top:50%;height:2px;background:#35e47a;box-shadow:0 0 12px #35e47a;animation:scan 2.4s linear infinite}.marker{position:absolute;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:#e53935;color:#fff;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;box-shadow:0 2px 12px #000;z-index:5}
+.preview{position:relative}.scan{position:absolute;left:4%;right:4%;top:50%;height:2px;background:#35e47a;box-shadow:0 0 12px #35e47a;animation:scan 2.4s linear infinite}
 @keyframes scan{0%{top:10%}50%{top:90%}100%{top:10%}}
 .badge{display:inline-block;padding:6px 9px;border-radius:20px;background:#26344a;color:#c8d4e5;font-size:12px}
 .result{padding:12px;border-radius:12px;margin-top:10px;border-left:4px solid #35e47a;background:#101b2a}
-.result.warn{border-color:#f2b84b}.result.bad{border-color:#ff5d69}
+.result.warn{border-color:#f2b84b}.result.bad{border-color:#ff5d69}.defect-number{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:#ff5d69;color:#fff;font-weight:bold;margin-right:8px}
 .row{display:flex;gap:9px}.row>*{flex:1}
 small{color:#9eacc0}.hidden{display:none}.footer{text-align:center;color:#74839a;font-size:11px;padding:10px 0 25px}
 </style>
@@ -46,7 +46,7 @@ small{color:#9eacc0}.hidden{display:none}.footer{text-align:center;color:#74839a
 <span class="badge" id="counter">0 defeitos</span>
 </div>
 <br>
-<div class="preview"><video id="video" autoplay playsinline></video><div class="scan" id="scanline"></div><div id="markers"></div></div>
+<div class="preview"><video id="video" autoplay playsinline></video><div class="scan" id="scanline"></div></div>
 <br>
 <div class="row">
 <button class="primary" onclick="capture()">📸 Analisar foto</button>
@@ -72,11 +72,11 @@ small{color:#9eacc0}.hidden{display:none}.footer{text-align:center;color:#74839a
 let stream=null, defects=[], frames=0, inspection={};
 
 async function startInspection(){
- inspection={project:project.value||'Sem projeto',tank:tank.value||'Sem número',type:type.value,date:new Date()}; defects=[]; frames=0; markers.innerHTML=''; results.innerHTML=''; counter.textContent='0 defeitos';
+ inspection={project:project.value||'Sem projeto',tank:tank.value||'Sem número',type:type.value,date:new Date()};
  setup.classList.add('hidden'); scanner.classList.remove('hidden');
  try{
   stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
-  video.srcObject=stream; status.textContent='🟢 Scanner ativo';
+  video.srcObject=stream; status.textContent='🟢 Câmera gravando/ativa'; cameraMode.value='recording'; cameraBtn.textContent='⏸️ Parar câmera';
  }catch(e){
   status.textContent='⚠️ Câmera indisponível';
   results.innerHTML='<div class="result warn">Permita o acesso à câmera. Se estiver usando um arquivo HTML local, abra por HTTPS ou localhost.</div>';
@@ -84,70 +84,81 @@ async function startInspection(){
 }
 
 function capture(){
- if(!stream){return}
+ if(!stream){
+  results.insertAdjacentHTML('afterbegin','<div class="result warn">⚠️ A câmera está parada. Selecione "Câmera gravando/ativa" para registrar.</div>');
+  return;
+ }
  frames++;
  const ctx=canvas.getContext('2d');
- canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+ canvas.width=video.videoWidth; canvas.height=video.videoHeight;
  ctx.drawImage(video,0,0,canvas.width,canvas.height);
 
- /*
-  PONTO DE INTEGRAÇÃO DA IA:
-  A imagem poderá ser enviada para um modelo de visão.
-  Nesta versão, a detecção é demonstrativa.
- */
  const demo=Math.random();
- let item;
  if(demo>.62){
-   const number=defects.length+1;
-   const confidence=Math.round(82+Math.random()*16);
-
-   // Posição demonstrativa do marcador. A IA real fornecerá x/y do defeito.
-   const x=18+Math.random()*64;
-   const y=20+Math.random()*60;
-
-   item={
-     id:Date.now(),
-     number:number,
-     kind:'Possível falha de pintura',
-     confidence:confidence,
-     time:new Date(),
-     x:x,
-     y:y,
-     image:canvas.toDataURL('image/jpeg',.78)
-   };
-
-   defects.push(item);
-   addMarker(item);
-   renderDefects();
+  const number=defects.length+1;
+  const item={
+   id:Date.now(),number:number,kind:'Possível falha de pintura',
+   confidence:Math.round(82+Math.random()*16),time:new Date(),
+   image:canvas.toDataURL('image/jpeg',.88)
+  };
+  defects.push(item);
+  saveDefectPhoto(item);
+  renderDefects();
+  results.insertAdjacentHTML('afterbegin','<div class="result warn"><b>📌 Defeito #'+number+' registrado. Foto salva automaticamente.</b></div>');
  }else{
-   results.insertAdjacentHTML('afterbegin','<div class="result"><b>🟢 Área analisada</b><br><small>Nenhuma anomalia aparente no modo demonstrativo.</small></div>');
+  results.insertAdjacentHTML('afterbegin','<div class="result"><b>🟢 Área analisada</b><br><small>Nenhuma anomalia aparente no modo demonstrativo.</small></div>');
  }
  counter.textContent=defects.length+' defeito'+(defects.length===1?'':'s');
 }
 
-function addMarker(item){
- const marker=document.createElement('div');
- marker.className='marker';
- marker.textContent=String(item.number).padStart(2,'0');
- marker.style.left=item.x+'%';
- marker.style.top=item.y+'%';
- marker.title='Defeito '+String(item.number).padStart(2,'0');
- marker.dataset.id=item.id;
- markers.appendChild(marker);
-}
 function renderDefects(){
  results.innerHTML=defects.slice().reverse().map(d=>`
- <div class="result bad">
- <b>🔴 DEFEITO ${String(d.number).padStart(2,'0')}</b><br>
- ${d.kind}<br>
- Confiança estimada: <b>${d.confidence}%</b><br>
- <small>${d.time.toLocaleTimeString('pt-BR')} • Marcador ${String(d.number).padStart(2,'0')}</small><br>
- <img src="${d.image}" style="width:100%;margin-top:9px;border-radius:9px">
- </div>`).join('');
+  <div class="result bad">
+   <b><span class="defect-number">${d.number}</span> DEFEITO #${d.number}</b><br>
+   <b>🔴 ${esc(d.kind)}</b><br>
+   Confiança estimada: <b>${d.confidence}%</b><br>
+   <small>${d.time.toLocaleTimeString('pt-BR')}</small><br>
+   <img src="${d.image}" style="width:100%;margin-top:9px;border-radius:9px">
+  </div>`).join('');
 }
+
 function stopCamera(){
  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
  status.textContent='⏸️ Câmera parada';
+ cameraMode.value='stopped';
+ cameraBtn.textContent='▶️ Iniciar câmera';
+}
+
+async function startCamera(){
+ try{
+  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
+  video.srcObject=stream;
+  status.textContent='🟢 Câmera gravando/ativa';
+  cameraMode.value='recording';
+  cameraBtn.textContent='⏸️ Parar câmera';
+ }catch(e){
+  status.textContent='⚠️ Câmera indisponível';
+  cameraMode.value='stopped';
+  results.insertAdjacentHTML('afterbegin','<div class="result warn">Permita o acesso à câmera. Se estiver usando um arquivo HTML local, abra por HTTPS ou localhost.</div>');
+ }
+}
+
+async function toggleCamera(){
+ if(stream) stopCamera(); else await startCamera();
+}
+
+async function setCameraMode(){
+ if(cameraMode.value==='recording') await startCamera();
+ else stopCamera();
+}
+
+function saveDefectPhoto(item){
+ const a=document.createElement('a');
+ a.href=item.image;
+ a.download='tanque-'+(inspection.tank||'sem-numero')+'-defeito-'+item.number+'.jpg';
+ document.body.appendChild(a);
+ a.click();
+ a.remove();
 }
 
 function finishInspection(){
@@ -158,7 +169,7 @@ function finishInspection(){
  <p><b>Tipo:</b> ${esc(inspection.type)}</p>
  <p><b>Data:</b> ${inspection.date.toLocaleString('pt-BR')}</p>
  <p><b>Áreas analisadas:</b> ${frames}</p>
- <p><b>Defeitos registrados:</b> ${defects.length}</p><p><b>Numeração:</b> ${defects.length ? '01 até '+String(defects.length).padStart(2,'0') : 'Nenhum'}</p>
+ <p><b>Defeitos registrados:</b> ${defects.length}</p><p><b>Numeração:</b> ${defects.length ? defects.map(d=>'#'+d.number).join(', ') : 'Nenhum'}</p>
  <hr><h3>${defects.length?'🔴 REQUER AVALIAÇÃO':'🟢 SEM DEFEITOS REGISTRADOS'}</h3>`;
 }
 
