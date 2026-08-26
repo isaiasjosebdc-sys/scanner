@@ -13,7 +13,7 @@ main{padding:15px}.card{background:#151f30;border:1px solid #27364b;border-radiu
 label{display:block;color:#aebbd0;font-size:12px;margin:10px 0 6px}
 input,select,button{width:100%;border-radius:11px;padding:13px;border:1px solid #34445c;background:#0c1523;color:#fff;font-size:15px}
 button{font-weight:bold;cursor:pointer}.primary{background:#1769e0;border-color:#1769e0}.success{background:#16834a;border-color:#16834a}.danger{background:#8e2530;border-color:#8e2530}
-video{width:100%;aspect-ratio:4/3;object-fit:cover;background:#02060b;border-radius:13px}.preview{position:relative}
+video{width:100%;aspect-ratio:unset;object-fit:cover;background:#02060b;border-radius:13px}.preview{position:relative;width:100%;height:calc(100vh - 230px);min-height:420px;max-height:900px;background:#000;overflow:hidden;border-radius:13px}.fullcam video{height:100%;min-height:100%;object-fit:cover}
 .scan{position:absolute;left:4%;right:4%;top:50%;height:2px;background:#35e47a;box-shadow:0 0 12px #35e47a;animation:scan 2.4s linear infinite}
 @keyframes scan{0%{top:10%}50%{top:90%}100%{top:10%}}
 .badge{display:inline-block;padding:6px 9px;border-radius:20px;background:#26344a;color:#c8d4e5;font-size:12px}
@@ -33,14 +33,14 @@ hr{border:0;border-top:1px solid #29384c;margin:14px 0}.score{font-weight:bold}
 <h3>Nova inspeção</h3>
 <label>Projeto / Cliente</label><input id="project" placeholder="Ex.: Projeto Tanques União">
 <label>Nº do tanque</label><input id="tank" placeholder="Ex.: 2458">
-<label>Tipo de inspeção</label><select id="type"><option>Inspeção de pintura</option><option>Inspeção geral</option></select>
+<label>Tipo de inspeção</label><select id="type"><option>Inspeção de pintura</option><option>Inspeção geral</option></select><label>Cor do tanque</label><input id="tankColor" placeholder="Ex.: branco, cinza claro, azul, verde..." autocomplete="off"><div class="hint">Informe a cor para melhorar a triagem de contraste, manchas e falhas de cobertura.</div>
 <button class="primary" onclick="startInspection()">📷 Iniciar scanner</button>
 </section>
 
 <section class="card hidden" id="scanner">
 <div class="row"><span class="badge" id="status">Câmera parada</span><span class="badge" id="counter">0 defeitos</span></div>
 <br>
-<div class="preview"><video id="video" autoplay playsinline></video><div class="scan" id="scanline"></div></div>
+<div class="preview fullcam"><video id="video" autoplay playsinline></video><div class="scan" id="scanline"></div></div>
 <br>
 <div class="row"><button class="primary" onclick="capture()">📸 Analisar foto</button><button onclick="toggleCamera()">⏯️ Câmera</button></div>
 <canvas id="canvas" class="hidden"></canvas>
@@ -66,7 +66,7 @@ let stream=null, defects=[], frames=0, inspection={};
 const $=id=>document.getElementById(id);
 
 async function startInspection(){
- inspection={project:$('project').value||'Sem projeto',tank:$('tank').value||'Sem número',type:$('type').value,date:new Date()};
+ inspection={project:$('project').value||'Sem projeto',tank:$('tank').value||'Sem número',type:$('type').value,color:$('tankColor').value.trim()||'não informada',date:new Date()};
  $('setup').classList.add('hidden');$('scanner').classList.remove('hidden');await startCamera();
 }
 async function startCamera(){
@@ -85,7 +85,8 @@ async function toggleCamera(){if(stream)stopCamera();else await startCamera()}
    Divide a foto em regiões e procura alterações de brilho, saturação,
    contraste e textura. É uma triagem, não substitui um modelo industrial treinado. */
 function detectAnomaly(ctx,w,h){
- const cols=8,rows=6,cells=[];
+ const cols=10,rows=8,cells=[];
+  const tankColor=(inspection.color||'').toLowerCase();
  const image=ctx.getImageData(0,0,w,h).data;
  function cellStats(cx,cy){
   const x0=Math.floor(cx*w/cols),x1=Math.floor((cx+1)*w/cols);
@@ -207,7 +208,7 @@ async function saveAllPhotos(){for(const d of defects)await savePhoto(d.id)}
 function finishInspection(){
  stopCamera();$('scanner').classList.add('hidden');$('report').classList.remove('hidden');
  $('summary').innerHTML=`<p><b>Projeto:</b> ${esc(inspection.project)}</p><p><b>Tanque:</b> ${esc(inspection.tank)}</p>
- <p><b>Tipo:</b> ${esc(inspection.type)}</p><p><b>Data:</b> ${inspection.date.toLocaleString('pt-BR')}</p>
+ <p><b>Tipo:</b> ${esc(inspection.type)}</p><p><b>Cor do tanque:</b> ${esc(inspection.color)}</p><p><b>Data:</b> ${inspection.date.toLocaleString('pt-BR')}</p>
  <p><b>Áreas analisadas:</b> ${frames}</p><p><b>Possíveis defeitos:</b> ${defects.length}</p>
  <hr><h3>${defects.length?'🔴 REQUER AVALIAÇÃO':'🟢 NENHUMA ANOMALIA DETECTADA'}</h3>`;
  $('reportPhotos').innerHTML=defects.length?`<h3>📸 Fotos registradas e marcadas</h3>${defects.slice().reverse().map(d=>`
@@ -217,7 +218,7 @@ function finishInspection(){
  '<div class="result"><b>Nenhuma foto de possível defeito foi registrada.</b></div>';
 }
 function saveReport(){
- const data={inspection,defects,generatedAt:new Date().toISOString(),version:'3.0'};
+ const data={inspection,defects,generatedAt:new Date().toISOString(),version:'4.0',features:['cor do tanque','arranhão','sujeira','falta de pintura','pintura mal feita','marcação na própria foto']};
  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
  a.href=url;a.download='relatorio-tanque-'+(inspection.tank||'sem-numero')+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
