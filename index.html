@@ -4,181 +4,200 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b1220">
-<title>TanqueVision IA</title>
+<title>TanqueVision IA — Inspeção</title>
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#08101d;color:#f4f7fb}
-.app{max-width:560px;margin:auto;min-height:100vh;background:#0e1726}
-header{padding:22px 18px 14px;border-bottom:1px solid #243247}
-h1{margin:0;font-size:25px}.sub{color:#9eacc0;font-size:13px;margin-top:5px}
-main{padding:16px}.card{background:#151f30;border:1px solid #27364b;border-radius:16px;padding:16px;margin-bottom:14px}
+.app{max-width:620px;margin:auto;min-height:100vh;background:#0e1726}
+header{padding:20px 18px 14px;border-bottom:1px solid #243247}h1{margin:0;font-size:24px}.sub{color:#9eacc0;font-size:13px;margin-top:5px}
+main{padding:15px}.card{background:#151f30;border:1px solid #27364b;border-radius:16px;padding:15px;margin-bottom:14px}
 label{display:block;color:#aebbd0;font-size:12px;margin:10px 0 6px}
 input,select,button{width:100%;border-radius:11px;padding:13px;border:1px solid #34445c;background:#0c1523;color:#fff;font-size:15px}
-button{font-weight:bold;cursor:pointer}.primary{background:#1769e0;border-color:#1769e0}.danger{background:#8e2530;border-color:#8e2530}
-video{width:100%;aspect-ratio:4/3;object-fit:cover;background:#02060b;border-radius:13px}
-.preview{position:relative}.scan{position:absolute;left:4%;right:4%;top:50%;height:2px;background:#35e47a;box-shadow:0 0 12px #35e47a;animation:scan 2.4s linear infinite}
+button{font-weight:bold;cursor:pointer}.primary{background:#1769e0;border-color:#1769e0}.success{background:#16834a;border-color:#16834a}.danger{background:#8e2530;border-color:#8e2530}
+video{width:100%;aspect-ratio:4/3;object-fit:cover;background:#02060b;border-radius:13px}.preview{position:relative}
+.scan{position:absolute;left:4%;right:4%;top:50%;height:2px;background:#35e47a;box-shadow:0 0 12px #35e47a;animation:scan 2.4s linear infinite}
 @keyframes scan{0%{top:10%}50%{top:90%}100%{top:10%}}
 .badge{display:inline-block;padding:6px 9px;border-radius:20px;background:#26344a;color:#c8d4e5;font-size:12px}
-.result{padding:12px;border-radius:12px;margin-top:10px;border-left:4px solid #35e47a;background:#101b2a}
-.result.warn{border-color:#f2b84b}.result.bad{border-color:#ff5d69}.defect-number{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:#ff5d69;color:#fff;font-weight:bold;margin-right:8px}
-.row{display:flex;gap:9px}.row>*{flex:1}
-small{color:#9eacc0}.hidden{display:none}.footer{text-align:center;color:#74839a;font-size:11px;padding:10px 0 25px}
+.result{padding:12px;border-radius:12px;margin-top:10px;border-left:4px solid #35e47a;background:#101b2a}.result.warn{border-color:#f2b84b}.result.bad{border-color:#ff5d69}
+.defect-number{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;background:#ff5d69;color:#fff;font-weight:bold;margin-right:8px}
+.row{display:flex;gap:9px}.row>*{flex:1}small{color:#9eacc0}.hidden{display:none}.footer{text-align:center;color:#74839a;font-size:11px;padding:10px 0 25px}
+.photoBox{position:relative;margin-top:10px}.photoBox img{width:100%;display:block;border-radius:10px}.photoBox canvas{width:100%;display:block;border-radius:10px;background:#050a12}
+.hint{font-size:12px;color:#aebbd0;line-height:1.45}.tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+hr{border:0;border-top:1px solid #29384c;margin:14px 0}.score{font-weight:bold}
 </style>
 </head>
 <body>
 <div class="app">
-<header>
-<h1>🔎 TanqueVision IA</h1>
-<div class="sub">Inspeção visual assistida por câmera</div>
-</header>
+<header><h1>🔎 TanqueVision IA</h1><div class="sub">Inspeção visual assistida • marcação automática de possíveis falhas</div></header>
 <main>
 <section class="card" id="setup">
 <h3>Nova inspeção</h3>
 <label>Projeto / Cliente</label><input id="project" placeholder="Ex.: Projeto Tanques União">
 <label>Nº do tanque</label><input id="tank" placeholder="Ex.: 2458">
-<label>Tipo de inspeção</label>
-<select id="type"><option>Inspeção de pintura</option><option>Inspeção geral</option></select>
+<label>Tipo de inspeção</label><select id="type"><option>Inspeção de pintura</option><option>Inspeção geral</option></select>
 <button class="primary" onclick="startInspection()">📷 Iniciar scanner</button>
 </section>
 
 <section class="card hidden" id="scanner">
-<div class="row">
-<span class="badge" id="status">Câmera parada</span>
-<span class="badge" id="counter">0 defeitos</span>
-</div>
+<div class="row"><span class="badge" id="status">Câmera parada</span><span class="badge" id="counter">0 defeitos</span></div>
 <br>
 <div class="preview"><video id="video" autoplay playsinline></video><div class="scan" id="scanline"></div></div>
 <br>
-<div class="row">
-<button class="primary" onclick="capture()">📸 Analisar foto</button>
-<button onclick="stopCamera()">Parar</button>
-</div>
+<div class="row"><button class="primary" onclick="capture()">📸 Analisar foto</button><button onclick="toggleCamera()">⏯️ Câmera</button></div>
 <canvas id="canvas" class="hidden"></canvas>
 <div id="results"></div>
 <br>
-<button onclick="finishInspection()">✅ Finalizar inspeção</button>
+<button class="success" onclick="finishInspection()">✅ Finalizar inspeção</button>
 </section>
 
 <section class="card hidden" id="report">
-<h3>Relatório da inspeção</h3>
-<div id="summary"></div>
-<button class="primary" onclick="saveReport()">💾 Salvar relatório no celular</button>
+<h3>Relatório da inspeção</h3><div id="summary"></div>
+<button class="primary" onclick="saveReport()">💾 Salvar relatório</button>
+<button onclick="saveAllPhotos()">🖼️ Salvar todas as imagens</button>
 <button onclick="location.reload()">Nova inspeção</button>
 </section>
-<div class="footer">Protótipo TanqueVision IA • A detecção atual é uma simulação de IA. Para diagnóstico real, conectaremos um modelo de visão treinado com fotos dos seus tanques.</div>
+<div class="footer">TanqueVision IA • A marcação é feita diretamente na foto. A análise local usa visão computacional heurística; para diagnóstico industrial confiável é necessário um modelo treinado com fotos reais dos seus tanques.</div>
 </main>
 </div>
 
 <script>
 let stream=null, defects=[], frames=0, inspection={};
 
+const $=id=>document.getElementById(id);
+
 async function startInspection(){
- inspection={project:project.value||'Sem projeto',tank:tank.value||'Sem número',type:type.value,date:new Date()};
- setup.classList.add('hidden'); scanner.classList.remove('hidden');
+ inspection={project:$('project').value||'Sem projeto',tank:$('tank').value||'Sem número',type:$('type').value,date:new Date()};
+ $('setup').classList.add('hidden');$('scanner').classList.remove('hidden');await startCamera();
+}
+async function startCamera(){
  try{
-  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
-  video.srcObject=stream; status.textContent='🟢 Câmera gravando/ativa'; cameraMode.value='recording'; cameraBtn.textContent='⏸️ Parar câmera';
+  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
+  $('video').srcObject=stream;$('status').textContent='🟢 Câmera ativa';
  }catch(e){
-  status.textContent='⚠️ Câmera indisponível';
-  results.innerHTML='<div class="result warn">Permita o acesso à câmera. Se estiver usando um arquivo HTML local, abra por HTTPS ou localhost.</div>';
+  $('status').textContent='⚠️ Câmera indisponível';
+  $('results').insertAdjacentHTML('afterbegin','<div class="result warn">Permita o acesso à câmera. No celular, abra o site em HTTPS.</div>');
  }
 }
+function stopCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$('status').textContent='⏸️ Câmera parada'}
+async function toggleCamera(){if(stream)stopCamera();else await startCamera()}
 
-function capture(){
- if(!stream){
-  results.insertAdjacentHTML('afterbegin','<div class="result warn">⚠️ A câmera está parada. Selecione "Câmera gravando/ativa" para registrar.</div>');
-  return;
+/* Analisa a imagem sem enviar a foto para servidor.
+   Divide a foto em regiões e procura alterações de brilho, saturação,
+   contraste e textura. É uma triagem, não substitui um modelo industrial treinado. */
+function detectAnomaly(ctx,w,h){
+ const cols=8,rows=6,cells=[];
+ const image=ctx.getImageData(0,0,w,h).data;
+ function cellStats(cx,cy){
+  const x0=Math.floor(cx*w/cols),x1=Math.floor((cx+1)*w/cols);
+  const y0=Math.floor(cy*h/rows),y1=Math.floor((cy+1)*h/rows);
+  let n=0,sum=0,sum2=0,sat=0,dark=0,light=0;
+  const step=Math.max(3,Math.floor(Math.min(w,h)/160));
+  for(let y=y0;y<y1;y+=step) for(let x=x0;x<x1;x+=step){
+   const i=(y*w+x)*4,r=image[i],g=image[i+1],b=image[i+2];
+   const lum=.2126*r+.7152*g+.0722*b, mx=Math.max(r,g,b),mn=Math.min(r,g,b);
+   sum+=lum;sum2+=lum*lum;sat+=mx-mn;if(lum<55)dark++;if(lum>235)light++;n++;
+  }
+  const mean=sum/n,variance=Math.max(0,sum2/n-mean*mean);
+  return {cx,cy,mean,sd:Math.sqrt(variance),sat:sat/n,dark:dark/n,light:light/n};
  }
- frames++;
- const ctx=canvas.getContext('2d');
- canvas.width=video.videoWidth; canvas.height=video.videoHeight;
- ctx.drawImage(video,0,0,canvas.width,canvas.height);
+ for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)cells.push(cellStats(x,y));
+ const usable=cells.filter(c=>c.mean>18&&c.mean<245);
+ const avg=usable.reduce((a,c)=>a+c.mean,0)/(usable.length||1);
+ const satAvg=usable.reduce((a,c)=>a+c.sat,0)/(usable.length||1);
 
- const demo=Math.random();
- if(demo>.62){
-  const number=defects.length+1;
-  const item={
-   id:Date.now(),number:number,kind:'Possível falha de pintura',
-   confidence:Math.round(82+Math.random()*16),time:new Date(),
-   image:canvas.toDataURL('image/jpeg',.88)
-  };
-  defects.push(item);
-  saveDefectPhoto(item);
-  renderDefects();
-  results.insertAdjacentHTML('afterbegin','<div class="result warn"><b>📌 Defeito #'+number+' registrado. Foto salva automaticamente.</b></div>');
- }else{
-  results.insertAdjacentHTML('afterbegin','<div class="result"><b>🟢 Área analisada</b><br><small>Nenhuma anomalia aparente no modo demonstrativo.</small></div>');
- }
- counter.textContent=defects.length+' defeito'+(defects.length===1?'':'s');
+ cells.forEach(c=>{
+  /* Score = diferença local + textura + regiões muito escuras/claras + alteração de cor */
+  const contrast=Math.abs(c.mean-avg)/Math.max(avg,1);
+  const texture=Math.min(c.sd/65,1);
+  const dirt=c.dark*.9;
+  const exposed=c.light*.65;
+  const color=Math.min(Math.abs(c.sat-satAvg)/70,1);
+  c.score=contrast*.9+texture*.8+dirt+exposed+color*.5;
+ });
+ cells.sort((a,b)=>b.score-a.score);
+ const best=cells[0];
+ let kind='Possível falha/irregularidade de pintura';
+ if(best.dark>.24) kind='Possível sujeira ou ponto escuro';
+ else if(best.light>.38 && best.sat<satAvg) kind='Possível falta de pintura / área exposta';
+ else if(best.sat>satAvg*1.45 || best.sd>55) kind='Possível mancha ou alteração de acabamento';
+ const confidence=Math.max(62,Math.min(94,Math.round(64+best.score*23)));
+ return {x:(best.cx+.5)*w/cols,y:(best.cy+.5)*h/rows,kind,confidence,score:best.score};
+}
+
+function drawAnnotated(srcCanvas,det){
+ const out=document.createElement('canvas');out.width=srcCanvas.width;out.height=srcCanvas.height;
+ const c=out.getContext('2d');c.drawImage(srcCanvas,0,0);
+ const x=det.x,y=det.y,rad=Math.max(28,Math.min(out.width,out.height)*.055);
+ c.save();c.lineWidth=Math.max(5,out.width/260);c.strokeStyle='#ff334d';c.fillStyle='#ff334d';
+ c.beginPath();c.arc(x,y,rad,0,Math.PI*2);c.stroke();
+ /* seta apontando para o ponto */
+ const sx=Math.max(rad*1.2,Math.min(out.width-rad*1.2,x+rad*2.8));
+ const sy=Math.max(rad*1.2,Math.min(out.height-rad*1.2,y-rad*2.5));
+ c.beginPath();c.moveTo(sx,sy);c.lineTo(x+rad*.2,y-rad*.2);c.stroke();
+ const ang=Math.atan2(y-rad*.2-sy,x+rad*.2-sx), ah=rad*.65;
+ c.beginPath();c.moveTo(x+rad*.2,y-rad*.2);
+ c.lineTo(x+rad*.2-ah*Math.cos(ang-.55),y-rad*.2-ah*Math.sin(ang-.55));
+ c.lineTo(x+rad*.2-ah*Math.cos(ang+.55),y-rad*.2-ah*Math.sin(ang+.55));c.closePath();c.fill();
+ c.font='bold '+Math.max(20,out.width/48)+'px Arial';
+ const label=' POSSÍVEL DEFEITO ';
+ const tw=c.measureText(label).width+20;
+ const bx=Math.min(Math.max(8,x-tw/2),out.width-tw-8),by=Math.max(8,y-rad-55);
+ c.fillStyle='rgba(130,0,15,.9)';c.fillRect(bx,by,tw,38);c.fillStyle='#fff';c.fillText(label,bx+10,by+27);
+ c.restore();return out;
+}
+
+async function capture(){
+ if(!stream){$('results').insertAdjacentHTML('afterbegin','<div class="result warn">⚠️ Ligue a câmera antes de analisar.</div>');return}
+ frames++;const video=$('video'),canvas=$('canvas'),ctx=canvas.getContext('2d');
+ canvas.width=video.videoWidth||1280;canvas.height=video.videoHeight||720;ctx.drawImage(video,0,0,canvas.width,canvas.height);
+ const det=detectAnomaly(ctx,canvas.width,canvas.height);
+ const annotated=drawAnnotated(canvas,det);
+ const number=defects.length+1;
+ const item={id:Date.now(),number,kind:det.kind,confidence:det.confidence,time:new Date(),
+   x:det.x/canvas.width,y:det.y/canvas.height,image:annotated.toDataURL('image/jpeg',.93)};
+ defects.push(item);renderDefects();
+ $('counter').textContent=defects.length+' defeito'+(defects.length===1?'':'s');
 }
 
 function renderDefects(){
- results.innerHTML=defects.slice().reverse().map(d=>`
-  <div class="result bad">
-   <b><span class="defect-number">${d.number}</span> DEFEITO #${d.number}</b><br>
-   <b>🔴 ${esc(d.kind)}</b><br>
-   Confiança estimada: <b>${d.confidence}%</b><br>
-   <small>${d.time.toLocaleTimeString('pt-BR')}</small><br>
-   <img src="${d.image}" style="width:100%;margin-top:9px;border-radius:9px">
-  </div>`).join('');
+ $('results').innerHTML=defects.slice().reverse().map(d=>`
+ <div class="result bad">
+  <b><span class="defect-number">${d.number}</span> DEFEITO #${d.number}</b><br>
+  <b>🔴 ${esc(d.kind)}</b><br>
+  Confiança da triagem: <span class="score">${d.confidence}%</span>
+  <div class="photoBox"><img src="${d.image}" alt="Foto marcada com seta"></div>
+  <div class="hint">📍 A seta e o círculo indicam a região que apresentou maior anomalia na análise. Toque na imagem para ampliar.</div>
+  <div class="tools"><button onclick="savePhoto(${d.id})">🖼️ Salvar imagem</button><button onclick="sharePhoto(${d.id})">📤 Compartilhar</button></div>
+  <small>${d.time.toLocaleString('pt-BR')}</small>
+ </div>`).join('');
 }
 
-function stopCamera(){
- if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
- status.textContent='⏸️ Câmera parada';
- cameraMode.value='stopped';
- cameraBtn.textContent='▶️ Iniciar câmera';
+async function savePhoto(id){
+ const d=defects.find(x=>x.id===id);if(!d)return;
+ const blob=await (await fetch(d.image)).blob(),url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download=`tanque-${inspection.tank}-defeito-${d.number}.jpg`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-
-async function startCamera(){
+async function sharePhoto(id){
+ const d=defects.find(x=>x.id===id);if(!d)return;
  try{
-  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
-  video.srcObject=stream;
-  status.textContent='🟢 Câmera gravando/ativa';
-  cameraMode.value='recording';
-  cameraBtn.textContent='⏸️ Parar câmera';
- }catch(e){
-  status.textContent='⚠️ Câmera indisponível';
-  cameraMode.value='stopped';
-  results.insertAdjacentHTML('afterbegin','<div class="result warn">Permita o acesso à câmera. Se estiver usando um arquivo HTML local, abra por HTTPS ou localhost.</div>');
- }
+  const blob=await (await fetch(d.image)).blob();
+  const file=new File([blob],`tanque-${inspection.tank}-defeito-${d.number}.jpg`,{type:'image/jpeg'});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({title:`Defeito #${d.number}`,text:d.kind,files:[file]});}
+  else await savePhoto(id);
+ }catch(e){}
 }
-
-async function toggleCamera(){
- if(stream) stopCamera(); else await startCamera();
-}
-
-async function setCameraMode(){
- if(cameraMode.value==='recording') await startCamera();
- else stopCamera();
-}
-
-function saveDefectPhoto(item){
- const a=document.createElement('a');
- a.href=item.image;
- a.download='tanque-'+(inspection.tank||'sem-numero')+'-defeito-'+item.number+'.jpg';
- document.body.appendChild(a);
- a.click();
- a.remove();
-}
-
+async function saveAllPhotos(){for(const d of defects)await savePhoto(d.id)}
 function finishInspection(){
- stopCamera(); scanner.classList.add('hidden'); report.classList.remove('hidden');
- summary.innerHTML=`
- <p><b>Projeto:</b> ${esc(inspection.project)}</p>
- <p><b>Tanque:</b> ${esc(inspection.tank)}</p>
- <p><b>Tipo:</b> ${esc(inspection.type)}</p>
- <p><b>Data:</b> ${inspection.date.toLocaleString('pt-BR')}</p>
- <p><b>Áreas analisadas:</b> ${frames}</p>
- <p><b>Defeitos registrados:</b> ${defects.length}</p><p><b>Numeração:</b> ${defects.length ? defects.map(d=>'#'+d.number).join(', ') : 'Nenhum'}</p>
- <hr><h3>${defects.length?'🔴 REQUER AVALIAÇÃO':'🟢 SEM DEFEITOS REGISTRADOS'}</h3>`;
+ stopCamera();$('scanner').classList.add('hidden');$('report').classList.remove('hidden');
+ $('summary').innerHTML=`<p><b>Projeto:</b> ${esc(inspection.project)}</p><p><b>Tanque:</b> ${esc(inspection.tank)}</p>
+ <p><b>Tipo:</b> ${esc(inspection.type)}</p><p><b>Data:</b> ${inspection.date.toLocaleString('pt-BR')}</p>
+ <p><b>Áreas analisadas:</b> ${frames}</p><p><b>Possíveis defeitos:</b> ${defects.length}</p>
+ <hr><h3>${defects.length?'🔴 REQUER AVALIAÇÃO':'🟢 NENHUMA ANOMALIA DETECTADA'}</h3>
+ <div class="hint">A ausência de alerta não garante que a superfície esteja perfeita. Para uso de qualidade/produção, valide os resultados com inspeção humana e, se necessário, um modelo de visão treinado com seu padrão de pintura.</div>`;
 }
-
 function saveReport(){
- const data={inspection,defects,generatedAt:new Date().toISOString()};
- const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
- const a=document.createElement('a');a.href=URL.createObjectURL(blob);
- a.download='relatorio-tanque-'+(inspection.tank||'sem-numero')+'.json';a.click();
- URL.revokeObjectURL(a.href);
+ const data={inspection,defects,generatedAt:new Date().toISOString(),version:'2.0'};
+ const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download='relatorio-tanque-'+(inspection.tank||'sem-numero')+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 </script>
