@@ -24,6 +24,7 @@ video{width:100%;aspect-ratio:unset;object-fit:cover;background:#02060b;border-r
 .hint{font-size:12px;color:#aebbd0;line-height:1.45}.tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 hr{border:0;border-top:1px solid #29384c;margin:14px 0}.score{font-weight:bold}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -52,7 +53,7 @@ hr{border:0;border-top:1px solid #29384c;margin:14px 0}.score{font-weight:bold}
 <section class="card hidden" id="report">
 <h3>📋 Relatório da inspeção</h3><div id="summary"></div>
 <div id="reportPhotos"></div>
-<button class="primary" onclick="saveReport()">💾 Salvar relatório</button>
+<button class="primary" onclick="saveReport()">📄 Salvar inspeção em PDF</button>
 <button onclick="saveAllPhotos()">🖼️ Salvar todas as imagens</button>
 <button onclick="location.reload()">Nova inspeção</button>
 </section>
@@ -66,7 +67,7 @@ let stream=null, defects=[], frames=0, inspection={};
 const $=id=>document.getElementById(id);
 
 async function startInspection(){
- inspection={project:$('project').value||'Sem projeto',tank:$('tank').value||'Sem número',type:$('type').value,color:$('tankColor').value.trim()||'não informada',date:new Date()};
+ inspection={project:$('project').value||'Sem projeto',tank:$('tank').value||'Sem número',type:$('type').value,color:$('tankColor').value.trim()||'não informada',color:document.getElementById('color')?.value||document.getElementById('tankColor')?.value||'Não informada',date:new Date()};
  $('setup').classList.add('hidden');$('scanner').classList.remove('hidden');await startCamera();
 }
 async function startCamera(){
@@ -216,7 +217,37 @@ function finishInspection(){
  $('summary').innerHTML=`<p><b>Projeto:</b> ${esc(inspection.project)}</p><p><b>Tanque:</b> ${esc(inspection.tank)}</p><p><b>Tipo:</b> ${esc(inspection.type)}</p><p><b>Cor:</b> ${esc(inspection.color)}</p><p><b>Data:</b> ${inspection.date.toLocaleString('pt-BR')}</p><p><b>Fotos analisadas:</b> ${frames}</p><p><b>Possíveis achados:</b> ${total}</p><hr><h3>${total?'🔴 REQUER AVALIAÇÃO':'🟢 NENHUMA ANOMALIA FORTE DETECTADA'}</h3>`;
  $('reportPhotos').innerHTML=defects.length?`<h3>📸 Fotos registradas e marcadas</h3>${defects.slice().reverse().map(d=>`<div class="result bad"><b>Foto #${d.number}</b><br>${d.detections.map((x,i)=>`<span>🔴 ${i+1}. ${esc(x.kind)} — ${x.confidence}%</span><br>`).join('')}<div class="photoBox"><a href="${d.image}" target="_blank"><img src="${d.image}" alt="Foto marcada"></a></div><div class="tools"><button onclick="savePhoto(${d.id})">🖼️ Salvar foto</button><button onclick="sharePhoto(${d.id})">📤 Compartilhar</button></div></div>`).join('')}`:'<div class="result">Nenhuma foto com anomalia forte foi registrada.</div>';
 }
-function saveReport(){const data={inspection,defects,generatedAt:new Date().toISOString(),version:'5.0',features:['filtro de sombras','multi-anomalias por foto','arranhão','sujeira','falta de pintura','mancha','pintura mal feita','cor do tanque','setas gravadas na imagem']};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='relatorio-tanque-'+(inspection.tank||'sem-numero')+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+async function saveReport(){
+if(!window.jspdf){alert('Gerador de PDF indisponível. Verifique a internet e tente novamente.');return;}
+const {jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4'});
+const W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight(),m=12;let y=20;
+function page(){doc.addPage();y=20;}
+function txt(label,value){
+ if(y>H-15)page();
+ doc.setTextColor(25,25,25);doc.setFontSize(10);doc.setFont(undefined,'bold');doc.text(label+':',m,y);
+ doc.setFont(undefined,'normal');const x=m+doc.getTextWidth(label+': ')+1,lines=doc.splitTextToSize(String(value),W-x-m);
+ doc.text(lines,x,y);y+=Math.max(6,lines.length*5.2);
+}
+doc.setFillColor(11,18,32);doc.rect(0,0,W,13,'F');doc.setTextColor(255,255,255);doc.setFontSize(15);doc.text('TanqueVision IA - Relatório de Inspeção',m,8);
+doc.setTextColor(25,25,25);doc.setFontSize(13);doc.setFont(undefined,'bold');doc.text('Dados da inspeção',m,y);y+=8;doc.setFont(undefined,'normal');
+txt('Projeto / Cliente',inspection.project||'Sem projeto');txt('Tanque',inspection.tank||'Sem número');txt('Tipo',inspection.type||'Inspeção');
+txt('Cor do tanque',inspection.color||inspection.tankColor||'Não informada');txt('Data',inspection.date?new Date(inspection.date).toLocaleString('pt-BR'):new Date().toLocaleString('pt-BR'));
+txt('Áreas analisadas',frames);txt('Possíveis defeitos',defects.length);y+=3;
+defects.forEach((d,i)=>{
+ if(y>H-45)page();
+ doc.setTextColor(150,0,20);doc.setFontSize(12);doc.setFont(undefined,'bold');doc.text(`Possível defeito #${d.number||i+1}`,m,y);y+=6;
+ doc.setTextColor(25,25,25);doc.setFontSize(10);doc.setFont(undefined,'normal');
+ const lines=doc.splitTextToSize(`Classificação: ${d.kind||'Possível anomalia'} | Confiança: ${d.confidence||'-'}%`,W-m*2);doc.text(lines,m,y);y+=lines.length*5+3;
+ if(d.image){
+  let p=doc.getImageProperties(d.image),iw=W-m*2,ih=iw*p.height/p.width,maxH=H-y-15;
+  if(ih>maxH){if(maxH<45){page();maxH=H-y-15;}iw=Math.min(W-m*2,maxH*p.width/p.height);ih=iw*p.height/p.width;}
+  doc.addImage(d.image,'JPEG',m,y,iw,ih,undefined,'FAST');y+=ih+8;
+ }
+});
+if(!defects.length){doc.setTextColor(20,110,60);doc.setFontSize(12);doc.text('Nenhuma anomalia registrada.',m,y);}
+for(let i=1;i<=doc.getNumberOfPages();i++){doc.setPage(i);doc.setTextColor(100,100,100);doc.setFontSize(8);doc.text(`Página ${i} de ${doc.getNumberOfPages()}`,W-m,H-7,{align:'right'});}
+doc.save(`relatorio-inspecao-tanque-${String(inspection.tank||'sem-numero').replace(/[^\\w-]+/g,'-')}.pdf`);
+}
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 </script>
 </body>
