@@ -14,7 +14,7 @@ label{display:block;color:#aebbd0;font-size:12px;margin:10px 0 6px}
 input,select,button{width:100%;border-radius:11px;padding:13px;border:1px solid #34445c;background:#0c1523;color:#fff;font-size:15px}
 button{font-weight:bold;cursor:pointer}.primary{background:#1769e0;border-color:#1769e0}.success{background:#16834a;border-color:#16834a}.danger{background:#8e2530;border-color:#8e2530}
 video{width:100%;aspect-ratio:unset;object-fit:cover;background:#02060b;border-radius:13px}.preview{position:relative;width:100%;height:calc(100vh - 230px);min-height:420px;max-height:900px;background:#000;overflow:hidden;border-radius:13px}.fullcam video{height:100%;min-height:100%;object-fit:cover}
-.scan{position:absolute;left:4%;right:4%;top:50%;height:2px;background:#35e47a;box-shadow:0 0 12px #35e47a;animation:scan 2.4s linear infinite}
+.tankGuide{position:absolute;top:8px;left:8px;right:8px;text-align:center;background:rgba(0,0,0,.58);padding:7px;border-radius:8px;font-size:11px;font-weight:bold;z-index:3}.tankFrame{position:absolute;left:7%;right:7%;top:7%;bottom:7%;border:2px solid rgba(255,255,255,.75);border-radius:18px;box-shadow:0 0 0 9999px rgba(0,0,0,.08);z-index:2;pointer-events:none}.scan{position:absolute;left:4%;right:4%;top:50%;height:2px;background:#35e47a;box-shadow:0 0 12px #35e47a;animation:scan 2.4s linear infinite}
 @keyframes scan{0%{top:10%}50%{top:90%}100%{top:10%}}
 .badge{display:inline-block;padding:6px 9px;border-radius:20px;background:#26344a;color:#c8d4e5;font-size:12px}
 .result{padding:12px;border-radius:12px;margin-top:10px;border-left:4px solid #35e47a;background:#101b2a}.result.warn{border-color:#f2b84b}.result.bad{border-color:#ff5d69}
@@ -41,7 +41,7 @@ hr{border:0;border-top:1px solid #29384c;margin:14px 0}.score{font-weight:bold}
 <section class="card hidden" id="scanner">
 <div class="row"><span class="badge" id="status">Câmera parada</span><span class="badge" id="counter">0 defeitos</span></div>
 <br>
-<div class="preview fullcam"><video id="video" autoplay playsinline></video><div class="scan" id="scanline"></div></div>
+<div class="preview fullcam"><video id="video" autoplay playsinline></video><div class="tankGuide">MANTENHA A SUPERFÍCIE DO TANQUE DENTRO DA ÁREA DE INSPEÇÃO</div><div class="tankFrame"></div><div class="scan" id="scanline"></div></div>
 <br>
 <div class="row"><button class="primary" onclick="capture()">📸 Analisar foto</button><button onclick="toggleCamera()">⏯️ Câmera</button></div>
 <canvas id="canvas" class="hidden"></canvas>
@@ -87,80 +87,41 @@ async function toggleCamera(){if(stream)stopCamera();else await startCamera()}
    treinado com fotos reais. A análise usa vizinhança, bordas, cor, textura e
    distribuição da luminosidade; sombras amplas e suaves são penalizadas. */
 function detectAnomalies(ctx,w,h){
- const img=ctx.getImageData(0,0,w,h), data=img.data;
- const cols=18, rows=12, cells=[];
- const colorName=(inspection.color||'').toLowerCase();
- const colorTarget=colorProfile(colorName);
- const lumAt=(x,y)=>{x=Math.max(0,Math.min(w-1,x));y=Math.max(0,Math.min(h-1,y));const i=(y*w+x)*4;return .2126*data[i]+.7152*data[i+1]+.0722*data[i+2]};
- const rgbAt=(x,y)=>{x=Math.max(0,Math.min(w-1,x));y=Math.max(0,Math.min(h-1,y));const i=(y*w+x)*4;return [data[i],data[i+1],data[i+2]]};
- const stats=(cx,cy)=>{
-  const x0=Math.floor(cx*w/cols),x1=Math.floor((cx+1)*w/cols),y0=Math.floor(cy*h/rows),y1=Math.floor((cy+1)*h/rows);
-  let n=0,sl=0,sl2=0,sr=0,sg=0,sb=0,sdark=0,edge=0,edge2=0;
-  const step=Math.max(2,Math.floor(Math.min(w,h)/280));
-  for(let y=y0;y<y1;y+=step) for(let x=x0;x<x1;x+=step){
-   const [r,g,b]=rgbAt(x,y),L=.2126*r+.7152*g+.0722*b; n++;sl+=L;sl2+=L*L;sr+=r;sg+=g;sb+=b;
-   if(L<70)sdark++;
-   const gx=Math.abs(lumAt(x+step,y)-lumAt(x-step,y)),gy=Math.abs(lumAt(x,y+step)-lumAt(x,y-step));
-   edge+=Math.min(255,gx+gy); edge2+=Math.min(255,Math.abs(gx-gy));
-  }
-  const mean=sl/n, sd=Math.sqrt(Math.max(0,sl2/n-mean*mean)),r=sr/n,g=sg/n,b=sb/n;
-  const mx=Math.max(r,g,b),mn=Math.min(r,g,b),sat=mx-mn;
-  return {cx,cy,mean,sd,r,g,b,sat,dark:sdark/n,edge:edge/n,edge2:edge2/n};
- };
+ const img=ctx.getImageData(0,0,w,h),d=img.data,cols=28,rows=18,cells=[];
+ const colorTarget=colorProfile((inspection.color||'').toLowerCase());
+ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+ const rgb=(x,y)=>{x=clamp(x|0,0,w-1);y=clamp(y|0,0,h-1);let i=(y*w+x)*4;return[d[i],d[i+1],d[i+2]]};
+ const lum=(x,y)=>{let q=rgb(x,y);return .2126*q[0]+.7152*q[1]+.0722*q[2]};
+ const stats=(cx,cy)=>{let x0=Math.floor(cx*w/cols),x1=Math.floor((cx+1)*w/cols),y0=Math.floor(cy*h/rows),y1=Math.floor((cy+1)*h/rows),step=Math.max(2,Math.floor(Math.min(w,h)/340));let n=0,L=0,L2=0,R=0,G=0,B=0,bright=0,edge=0,dirX=0,dirY=0;
+  for(let y=y0;y<y1;y+=step)for(let x=x0;x<x1;x+=step){let [r,g,b]=rgb(x,y),v=.2126*r+.7152*g+.0722*b,gx=lum(x+step,y)-lum(x-step,y),gy=lum(x,y+step)-lum(x,y-step);n++;L+=v;L2+=v*v;R+=r;G+=g;B+=b;if(v>232)bright++;edge+=Math.min(255,Math.abs(gx)+Math.abs(gy));dirX+=Math.abs(gx);dirY+=Math.abs(gy)}
+  let mean=L/n,sd=Math.sqrt(Math.max(0,L2/n-mean*mean)),r=R/n,g=G/n,b=B/n,mx=Math.max(r,g,b),mn=Math.min(r,g,b);return{cx,cy,mean,sd,r,g,b,sat:mx-mn,bright:bright/n,edge:edge/n,dirX:dirX/n,dirY:dirY/n};};
  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)cells.push(stats(x,y));
- const usable=cells.filter(c=>c.mean>12&&c.mean<250);
- const avg=usable.reduce((a,c)=>a+c.mean,0)/(usable.length||1);
- const satAvg=usable.reduce((a,c)=>a+c.sat,0)/(usable.length||1);
- const meanSd=usable.reduce((a,c)=>a+c.sd,0)/(usable.length||1);
- const meanEdge=usable.reduce((a,c)=>a+c.edge,0)/(usable.length||1);
- function neigh(c){return cells.filter(n=>Math.abs(n.cx-c.cx)<=1&&Math.abs(n.cy-c.cy)<=1&&n!==c)}
- function colorDistance(c){
-   if(!colorTarget)return 0;
-   const t=colorTarget, a=[c.r,c.g,c.b], b=[t.r,t.g,t.b];
-   return Math.min(1,Math.sqrt((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2)/180);
- }
+ const inner=cells.filter(c=>c.cx>1&&c.cx<cols-2&&c.cy>1&&c.cy<rows-2&&c.mean>8&&c.mean<252);
+ const avg=inner.reduce((a,c)=>a+c.mean,0)/(inner.length||1),avgEdge=inner.reduce((a,c)=>a+c.edge,0)/(inner.length||1),avgSd=inner.reduce((a,c)=>a+c.sd,0)/(inner.length||1),avgSat=inner.reduce((a,c)=>a+c.sat,0)/(inner.length||1);
+ function near(c,rx=2,ry=2){return cells.filter(n=>n!==c&&Math.abs(n.cx-c.cx)<=rx&&Math.abs(n.cy-c.cy)<=ry)}
+ function colorDelta(c){if(!colorTarget)return 0;return Math.min(1,Math.sqrt((c.r-colorTarget.r)**2+(c.g-colorTarget.g)**2+(c.b-colorTarget.b)**2)/210)}
  cells.forEach(c=>{
-   const ns=neigh(c),navg=ns.reduce((a,n)=>a+n.mean,0)/(ns.length||1), nedge=ns.reduce((a,n)=>a+n.edge,0)/(ns.length||1);
-   c.local=Math.abs(c.mean-navg)/Math.max(navg,20);
-   c.texture=Math.min(1,c.sd/55);
-   c.edgeRel=Math.min(1,c.edge/Math.max(meanEdge,1));
-   c.edgeDelta=Math.min(1,Math.abs(c.edge-nedge)/Math.max(nedge,8));
-   c.colorDelta=Math.min(1,Math.abs(c.sat-satAvg)/70);
-   c.targetDelta=colorDistance(c);
-   /* Sombra típica: área grande, escura, baixa borda/textura e cor preservada.
-      Penalizamos fortemente para não transformar sombra em sujeira. */
-   c.shadowLike=(c.mean<avg*.72 && c.sd<Math.max(28,meanSd*.85) && c.edge<meanEdge*1.15 && c.colorDelta<.35) ? 1 : 0;
-   const compactDark=c.dark>.12 && c.edgeRel>1.05 && c.edgeDelta>.12;
-   const scratch= c.edgeRel>1.18 && c.edgeDelta>.18 && c.sd>Math.max(18,meanSd*.95);
-   const paintFail= c.local>.14 && (c.targetDelta>.22 || c.colorDelta>.28 || c.edgeDelta>.12);
-   const stain= c.local>.12 && c.colorDelta>.25 && c.sd>Math.max(20,meanSd*.9);
-   const dirt= compactDark && !c.shadowLike;
-   c.features={scratch,paintFail,stain,dirt};
-   c.score=0;
-   if(scratch)c.score+=1.25;
-   if(paintFail)c.score+=.95;
-   if(stain)c.score+=.9;
-   if(dirt)c.score+=1.15;
-   c.score+=Math.min(.7,c.local*2.2)+Math.min(.45,c.edgeDelta*.65)+Math.min(.35,c.colorDelta*.45);
-   c.score-=c.shadowLike*1.45;
+  const ns=near(c),nL=ns.reduce((a,n)=>a+n.mean,0)/(ns.length||1),nE=ns.reduce((a,n)=>a+n.edge,0)/(ns.length||1),nS=ns.reduce((a,n)=>a+n.sd,0)/(ns.length||1);
+  c.local=Math.abs(c.mean-nL)/Math.max(nL,25);c.edgeRel=c.edge/Math.max(avgEdge,8);c.edgeDelta=Math.abs(c.edge-nE)/Math.max(nE,10);c.texRel=c.sd/Math.max(avgSd,8);c.colorDelta=colorDelta(c);
+  const highlight=c.bright>.18&&c.sat<48&&c.edgeRel<1.45&&c.texRel<1.25;
+  const smoothShadow=c.mean<avg*.76&&c.sd<Math.max(24,avgSd*.9)&&c.edgeRel<1.2&&c.edgeDelta<.2;
+  const glare=c.mean>avg*1.22&&c.sat<55&&c.edgeRel<1.35&&c.texRel<1.3;
+  const broadGradient=c.local>.08&&c.edgeRel<.9&&c.edgeDelta<.16&&c.texRel<1.15;
+  c.reflectionLike=highlight||glare;c.shadowLike=smoothShadow;c.backgroundLike=(c.cx<2||c.cx>cols-3||c.cy<1||c.cy>rows-2);
+  // Candidate signatures: scratches need directional edges; dirt needs compact dark texture; paint failure needs local color/coverage deviation; stains need chroma/texture.
+  c.scratch=c.edgeRel>1.45&&c.edgeDelta>.18&&c.texRel>1.08&&Math.max(c.dirX,c.dirY)>22;
+  c.dirt=c.mean<avg*.72&&c.sd>Math.max(16,avgSd*.9)&&c.edgeRel>1.15&&c.edgeDelta>.14;
+  c.paintFail=c.local>.15&&(c.colorDelta>.22||c.texRel>1.2||c.edgeDelta>.14);
+  c.stain=c.colorDelta>.28&&c.local>.10&&c.texRel>1.05&&c.edgeRel>1.05;
+  c.weld=c.edgeRel>1.65&&c.edgeDelta>.28&&c.texRel>1.15&&(c.dirX>28||c.dirY>28);
+  c.score=(c.scratch?1.55:0)+(c.dirt?1.15:0)+(c.paintFail?.95:0)+(c.stain?.85:0)+(c.weld?1.35:0)+Math.min(.7,c.local*2.5)+Math.min(.5,c.edgeDelta*.8)+Math.min(.4,c.colorDelta*.5);
+  if(c.reflectionLike||c.shadowLike||broadGradient||c.backgroundLike)c.score-=2.0;
+  if(c.reflectionLike)c.score-=1.3;
  });
- const candidates=cells.filter(c=>c.score>=1.05 && !c.shadowLike);
- candidates.sort((a,b)=>b.score-a.score);
- const chosen=[];
- for(const c of candidates){
-   if(chosen.every(d=>Math.hypot(c.cx-d.cx,c.cy-d.cy)>=2.0)) chosen.push(c);
-   if(chosen.length>=8)break;
- }
- return chosen.map(c=>{
-   let kind='Possível falha de pintura';
-   if(c.features.scratch && c.edgeRel>=c.edgeDelta+0.65) kind='Possível arranhão';
-   else if(c.features.dirt) kind='Possível sujeira';
-   else if(c.features.paintFail && c.mean>avg*1.18) kind='Possível falta de pintura';
-   else if(c.features.stain) kind='Possível mancha / alteração de acabamento';
-   else if(c.features.paintFail) kind='Possível pintura mal feita';
-   const confidence=Math.max(68,Math.min(96,Math.round(68+c.score*12)));
-   return {x:(c.cx+.5)*w/cols,y:(c.cy+.5)*h/rows,kind,confidence,score:c.score};
- });
+ const candidates=cells.filter(c=>c.score>=1.55&&!c.reflectionLike&&!c.shadowLike&&!c.backgroundLike);
+ candidates.sort((a,b)=>b.score-a.score);const chosen=[];
+ for(const c of candidates){if(chosen.every(q=>Math.hypot(c.cx-q.cx,c.cy-q.cy)>=2.5))chosen.push(c);if(chosen.length>=10)break;}
+ return chosen.map(c=>{let kind='Possível falha de pintura';if(c.weld)kind='Possível solda fora do padrão';else if(c.scratch)kind='Possível arranhão';else if(c.dirt)kind='Possível sujeira';else if(c.stain)kind='Possível mancha / alteração';else if(c.paintFail)kind='Possível pintura mal feita';let conf=Math.max(70,Math.min(97,Math.round(70+c.score*10)));return{x:(c.cx+.5)*w/cols,y:(c.cy+.5)*h/rows,kind,confidence:conf,score:c.score};});
 }
 function colorProfile(name){
  const n=name.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
@@ -173,20 +134,12 @@ function colorProfile(name){
  const key=Object.keys(map).find(k=>n.includes(k)); if(!key)return null; const [r,g,b]=map[key]; return {r,g,b};
 }
 function drawAnnotated(srcCanvas,dets){
- const out=document.createElement('canvas');out.width=srcCanvas.width;out.height=srcCanvas.height;
- const c=out.getContext('2d');c.drawImage(srcCanvas,0,0);const minDim=Math.min(out.width,out.height);
- dets.forEach((det,i)=>{
-   const x=Math.max(10,Math.min(out.width-10,det.x)),y=Math.max(10,Math.min(out.height-10,det.y));
-   const rad=Math.max(34,minDim*.052),lw=Math.max(5,minDim/210);c.save();c.lineWidth=lw;c.strokeStyle='#ff1735';c.fillStyle='#ff1735';c.shadowColor='rgba(255,0,30,.8)';c.shadowBlur=10;
-   c.beginPath();c.arc(x,y,rad,0,Math.PI*2);c.stroke();c.beginPath();c.arc(x,y,rad*.15,0,Math.PI*2);c.fill();
-   const side=i%2===0?-1:1;const sx=Math.max(25,Math.min(out.width-25,x+side*rad*3.2));const sy=Math.max(35,Math.min(out.height-35,y-rad*2.0));
-   const tx=x+side*rad*.12,ty=y-rad*.12,ang=Math.atan2(ty-sy,tx-sx),len=Math.max(32,rad*.9);
-   c.beginPath();c.moveTo(sx,sy);c.lineTo(tx,ty);c.stroke();c.beginPath();c.moveTo(tx,ty);c.lineTo(tx-len*Math.cos(ang-.48),ty-len*Math.sin(ang-.48));c.lineTo(tx-len*Math.cos(ang+.48),ty-len*Math.sin(ang+.48));c.closePath();c.fill();c.shadowBlur=0;
-   const fs=Math.max(18,minDim/52);c.font='bold '+fs+'px Arial';const label=(i+1)+'. '+det.kind;const pad=10,tw=c.measureText(label).width+pad*2,bh=fs+pad*1.6;const bx=Math.min(Math.max(10,sx-tw/2),out.width-tw-10),by=Math.min(Math.max(10,sy-bh-10),out.height-bh-10);
-   c.fillStyle='rgba(155,0,18,.94)';c.fillRect(bx,by,tw,bh);c.strokeStyle='#fff';c.lineWidth=2;c.strokeRect(bx,by,tw,bh);c.fillStyle='#fff';c.fillText(label,bx+pad,by+fs+pad*.35);c.restore();
- });
- return out;
+ const out=document.createElement('canvas');out.width=srcCanvas.width;out.height=srcCanvas.height;const c=out.getContext('2d');c.drawImage(srcCanvas,0,0);const md=Math.min(out.width,out.height);
+ dets.forEach((d,i)=>{const x=d.x,y=d.y,rad=Math.max(28,md*.035),lw=Math.max(4,md/250),side=i%2?-1:1,sx=clamp(x+side*rad*5,30,out.width-30),sy=clamp(y-rad*3.2,45,out.height-45),tx=x+side*rad*.15,ty=y-rad*.1,ang=Math.atan2(ty-sy,tx-sx),len=rad*1.15;
+  c.save();c.lineWidth=lw;c.strokeStyle='#ff1735';c.fillStyle='#ff1735';c.shadowColor='rgba(255,0,30,.85)';c.shadowBlur=8;c.beginPath();c.arc(x,y,rad,0,Math.PI*2);c.stroke();c.beginPath();c.arc(x,y,rad*.18,0,Math.PI*2);c.fill();c.beginPath();c.moveTo(sx,sy);c.lineTo(tx,ty);c.stroke();c.beginPath();c.moveTo(tx,ty);c.lineTo(tx-len*Math.cos(ang-.48),ty-len*Math.sin(ang-.48));c.lineTo(tx-len*Math.cos(ang+.48),ty-len*Math.sin(ang+.48));c.closePath();c.fill();c.shadowBlur=0;
+  const fs=Math.max(16,md/60);c.font='bold '+fs+'px Arial';const label=(i+1)+'. '+d.kind,pad=8,tw=c.measureText(label).width+pad*2,bh=fs+pad*1.7,bx=clamp(sx-tw/2,8,out.width-tw-8),by=clamp(sy-bh-8,8,out.height-bh-8);c.fillStyle='rgba(145,0,18,.95)';c.fillRect(bx,by,tw,bh);c.strokeStyle='#fff';c.lineWidth=1.5;c.strokeRect(bx,by,tw,bh);c.fillStyle='#fff';c.fillText(label,bx+pad,by+fs+pad*.35);c.restore();});return out;
 }
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 
 async function capture(){
  if(!stream){$('results').insertAdjacentHTML('afterbegin','<div class="result warn">⚠️ Ligue a câmera antes de analisar.</div>');return}
@@ -235,9 +188,10 @@ txt('Cor do tanque',inspection.color||inspection.tankColor||'Não informada');tx
 txt('Áreas analisadas',frames);txt('Possíveis defeitos',defects.length);y+=3;
 defects.forEach((d,i)=>{
  if(y>H-45)page();
- doc.setTextColor(150,0,20);doc.setFontSize(12);doc.setFont(undefined,'bold');doc.text(`Possível defeito #${d.number||i+1}`,m,y);y+=6;
+ doc.setTextColor(150,0,20);doc.setFontSize(12);doc.setFont(undefined,'bold');doc.text(`Foto #${d.number||i+1}`,m,y);y+=6;
  doc.setTextColor(25,25,25);doc.setFontSize(10);doc.setFont(undefined,'normal');
- const lines=doc.splitTextToSize(`Classificação: ${d.kind||'Possível anomalia'} | Confiança: ${d.confidence||'-'}%`,W-m*2);doc.text(lines,m,y);y+=lines.length*5+3;
+ const desc=(d.detections||[]).map((x,j)=>`${j+1}. ${x.kind} (${x.confidence}%)`).join(' | ');
+ const lines=doc.splitTextToSize(desc||'Sem classificação',W-m*2);doc.text(lines,m,y);y+=lines.length*5+3;
  if(d.image){
   let p=doc.getImageProperties(d.image),iw=W-m*2,ih=iw*p.height/p.width,maxH=H-y-15;
   if(ih>maxH){if(maxH<45){page();maxH=H-y-15;}iw=Math.min(W-m*2,maxH*p.width/p.height);ih=iw*p.height/p.width;}
