@@ -50,7 +50,8 @@ hr{border:0;border-top:1px solid #29384c;margin:14px 0}.score{font-weight:bold}
 </section>
 
 <section class="card hidden" id="report">
-<h3>Relatório da inspeção</h3><div id="summary"></div>
+<h3>📋 Relatório da inspeção</h3><div id="summary"></div>
+<div id="reportPhotos"></div>
 <button class="primary" onclick="saveReport()">💾 Salvar relatório</button>
 <button onclick="saveAllPhotos()">🖼️ Salvar todas as imagens</button>
 <button onclick="location.reload()">Nova inspeção</button>
@@ -126,22 +127,38 @@ function detectAnomaly(ctx,w,h){
 function drawAnnotated(srcCanvas,det){
  const out=document.createElement('canvas');out.width=srcCanvas.width;out.height=srcCanvas.height;
  const c=out.getContext('2d');c.drawImage(srcCanvas,0,0);
- const x=det.x,y=det.y,rad=Math.max(28,Math.min(out.width,out.height)*.055);
- c.save();c.lineWidth=Math.max(5,out.width/260);c.strokeStyle='#ff334d';c.fillStyle='#ff334d';
+ const x=Math.max(10,Math.min(out.width-10,det.x)), y=Math.max(10,Math.min(out.height-10,det.y));
+ const minDim=Math.min(out.width,out.height);
+ const rad=Math.max(38,minDim*.075);
+ const lw=Math.max(6,minDim/180);
+ c.save();
+ c.lineWidth=lw;
+ c.strokeStyle='#ff1735';c.fillStyle='#ff1735';c.shadowColor='rgba(255,0,30,.75)';c.shadowBlur=12;
+ // alvo/círculo bem visível
  c.beginPath();c.arc(x,y,rad,0,Math.PI*2);c.stroke();
- /* seta apontando para o ponto */
- const sx=Math.max(rad*1.2,Math.min(out.width-rad*1.2,x+rad*2.8));
- const sy=Math.max(rad*1.2,Math.min(out.height-rad*1.2,y-rad*2.5));
- c.beginPath();c.moveTo(sx,sy);c.lineTo(x+rad*.2,y-rad*.2);c.stroke();
- const ang=Math.atan2(y-rad*.2-sy,x+rad*.2-sx), ah=rad*.65;
- c.beginPath();c.moveTo(x+rad*.2,y-rad*.2);
- c.lineTo(x+rad*.2-ah*Math.cos(ang-.55),y-rad*.2-ah*Math.sin(ang-.55));
- c.lineTo(x+rad*.2-ah*Math.cos(ang+.55),y-rad*.2-ah*Math.sin(ang+.55));c.closePath();c.fill();
- c.font='bold '+Math.max(20,out.width/48)+'px Arial';
- const label=' POSSÍVEL DEFEITO ';
- const tw=c.measureText(label).width+20;
- const bx=Math.min(Math.max(8,x-tw/2),out.width-tw-8),by=Math.max(8,y-rad-55);
- c.fillStyle='rgba(130,0,15,.9)';c.fillRect(bx,by,tw,38);c.fillStyle='#fff';c.fillText(label,bx+10,by+27);
+ c.beginPath();c.arc(x,y,rad*.18,0,Math.PI*2);c.fill();
+ c.beginPath();c.moveTo(x-rad*.38,y);c.lineTo(x+rad*.38,y);c.stroke();
+ c.beginPath();c.moveTo(x,y-rad*.38);c.lineTo(x,y+rad*.38);c.stroke();
+ // seta grande, sempre partindo do canto superior esquerdo e apontando para o defeito
+ const sx=Math.max(25,Math.min(out.width-25,x-rad*2.8));
+ const sy=Math.max(25,Math.min(out.height-25,y-rad*2.2));
+ const tx=x-rad*.15,ty=y-rad*.15;
+ const ang=Math.atan2(ty-sy,tx-sx),len=Math.max(34,rad*.85);
+ c.beginPath();c.moveTo(sx,sy);c.lineTo(tx,ty);c.stroke();
+ c.beginPath();c.moveTo(tx,ty);
+ c.lineTo(tx-len*Math.cos(ang-.48),ty-len*Math.sin(ang-.48));
+ c.lineTo(tx-len*Math.cos(ang+.48),ty-len*Math.sin(ang+.48));
+ c.closePath();c.fill();
+ c.shadowBlur=0;
+ // etiqueta
+ const fontSize=Math.max(22,minDim/38);c.font='bold '+fontSize+'px Arial';
+ const label='POSSÍVEL DEFEITO #'+det.number;
+ const pad=16, boxH=fontSize+pad*1.5, tw=c.measureText(label).width+pad*2;
+ const bx=Math.min(Math.max(12,sx-tw/2),out.width-tw-12);
+ const by=Math.min(Math.max(12,sy-boxH-18),out.height-boxH-12);
+ c.fillStyle='rgba(170,0,20,.94)';c.fillRect(bx,by,tw,boxH);
+ c.strokeStyle='#fff';c.lineWidth=Math.max(2,minDim/500);c.strokeRect(bx,by,tw,boxH);
+ c.fillStyle='#fff';c.font='bold '+fontSize+'px Arial';c.fillText(label,bx+pad,by+fontSize+pad*.45);
  c.restore();return out;
 }
 
@@ -150,8 +167,9 @@ async function capture(){
  frames++;const video=$('video'),canvas=$('canvas'),ctx=canvas.getContext('2d');
  canvas.width=video.videoWidth||1280;canvas.height=video.videoHeight||720;ctx.drawImage(video,0,0,canvas.width,canvas.height);
  const det=detectAnomaly(ctx,canvas.width,canvas.height);
- const annotated=drawAnnotated(canvas,det);
  const number=defects.length+1;
+ det.number=number;
+ const annotated=drawAnnotated(canvas,det);
  const item={id:Date.now(),number,kind:det.kind,confidence:det.confidence,time:new Date(),
    x:det.x/canvas.width,y:det.y/canvas.height,image:annotated.toDataURL('image/jpeg',.93)};
  defects.push(item);renderDefects();
@@ -164,7 +182,7 @@ function renderDefects(){
   <b><span class="defect-number">${d.number}</span> DEFEITO #${d.number}</b><br>
   <b>🔴 ${esc(d.kind)}</b><br>
   Confiança da triagem: <span class="score">${d.confidence}%</span>
-  <div class="photoBox"><img src="${d.image}" alt="Foto marcada com seta"></div>
+  <div class="photoBox"><a href="${d.image}" target="_blank"><img src="${d.image}" alt="Foto marcada com seta e círculo"></a></div>
   <div class="hint">📍 A seta e o círculo indicam a região que apresentou maior anomalia na análise. Toque na imagem para ampliar.</div>
   <div class="tools"><button onclick="savePhoto(${d.id})">🖼️ Salvar imagem</button><button onclick="sharePhoto(${d.id})">📤 Compartilhar</button></div>
   <small>${d.time.toLocaleString('pt-BR')}</small>
@@ -191,11 +209,15 @@ function finishInspection(){
  $('summary').innerHTML=`<p><b>Projeto:</b> ${esc(inspection.project)}</p><p><b>Tanque:</b> ${esc(inspection.tank)}</p>
  <p><b>Tipo:</b> ${esc(inspection.type)}</p><p><b>Data:</b> ${inspection.date.toLocaleString('pt-BR')}</p>
  <p><b>Áreas analisadas:</b> ${frames}</p><p><b>Possíveis defeitos:</b> ${defects.length}</p>
- <hr><h3>${defects.length?'🔴 REQUER AVALIAÇÃO':'🟢 NENHUMA ANOMALIA DETECTADA'}</h3>
- <div class="hint">A ausência de alerta não garante que a superfície esteja perfeita. Para uso de qualidade/produção, valide os resultados com inspeção humana e, se necessário, um modelo de visão treinado com seu padrão de pintura.</div>`;
+ <hr><h3>${defects.length?'🔴 REQUER AVALIAÇÃO':'🟢 NENHUMA ANOMALIA DETECTADA'}</h3>`;
+ $('reportPhotos').innerHTML=defects.length?`<h3>📸 Fotos registradas e marcadas</h3>${defects.slice().reverse().map(d=>`
+ <div class="result bad"><b>Defeito #${d.number} — ${esc(d.kind)}</b><br><span class="hint">A seta vermelha, o círculo e o alvo mostram exatamente a região indicada pela análise.</span>
+ <div class="photoBox"><a href="${d.image}" target="_blank"><img src="${d.image}" alt="Defeito ${d.number} marcado"></a></div>
+ <div class="tools"><button onclick="savePhoto(${d.id})">🖼️ Salvar foto</button><button onclick="sharePhoto(${d.id})">📤 Compartilhar</button></div></div>`).join('')}`:
+ '<div class="result"><b>Nenhuma foto de possível defeito foi registrada.</b></div>';
 }
 function saveReport(){
- const data={inspection,defects,generatedAt:new Date().toISOString(),version:'2.0'};
+ const data={inspection,defects,generatedAt:new Date().toISOString(),version:'3.0'};
  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
  a.href=url;a.download='relatorio-tanque-'+(inspection.tank||'sem-numero')+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
