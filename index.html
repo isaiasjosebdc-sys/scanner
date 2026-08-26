@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<title>TanqueVision IA</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#08101d;color:#f4f7fb}
+.app{max-width:560px;margin:auto;min-height:100vh;background:#0e1726}
+header{padding:22px 18px 14px;border-bottom:1px solid #243247}
+h1{margin:0;font-size:25px}.sub{color:#9eacc0;font-size:13px;margin-top:5px}
+main{padding:16px}.card{background:#151f30;border:1px solid #27364b;border-radius:16px;padding:16px;margin-bottom:14px}
+label{display:block;color:#aebbd0;font-size:12px;margin:10px 0 6px}
+input,select,button{width:100%;border-radius:11px;padding:13px;border:1px solid #34445c;background:#0c1523;color:#fff;font-size:15px}
+button{font-weight:bold;cursor:pointer}.primary{background:#1769e0;border-color:#1769e0}.danger{background:#8e2530;border-color:#8e2530}
+video{width:100%;aspect-ratio:4/3;object-fit:cover;background:#02060b;border-radius:13px}
+.preview{position:relative}.scan{position:absolute;left:4%;right:4%;top:50%;height:2px;background:#35e47a;box-shadow:0 0 12px #35e47a;animation:scan 2.4s linear infinite}
+@keyframes scan{0%{top:10%}50%{top:90%}100%{top:10%}}
+.badge{display:inline-block;padding:6px 9px;border-radius:20px;background:#26344a;color:#c8d4e5;font-size:12px}
+.result{padding:12px;border-radius:12px;margin-top:10px;border-left:4px solid #35e47a;background:#101b2a}
+.result.warn{border-color:#f2b84b}.result.bad{border-color:#ff5d69}
+.row{display:flex;gap:9px}.row>*{flex:1}
+small{color:#9eacc0}.hidden{display:none}.footer{text-align:center;color:#74839a;font-size:11px;padding:10px 0 25px}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+<h1>🔎 TanqueVision IA</h1>
+<div class="sub">Inspeção visual assistida por câmera</div>
+</header>
+<main>
+<section class="card" id="setup">
+<h3>Nova inspeção</h3>
+<label>Projeto / Cliente</label><input id="project" placeholder="Ex.: Projeto Tanques União">
+<label>Nº do tanque</label><input id="tank" placeholder="Ex.: 2458">
+<label>Tipo de inspeção</label>
+<select id="type"><option>Inspeção de pintura</option><option>Inspeção geral</option></select>
+<button class="primary" onclick="startInspection()">📷 Iniciar scanner</button>
+</section>
+
+<section class="card hidden" id="scanner">
+<div class="row">
+<span class="badge" id="status">Câmera parada</span>
+<span class="badge" id="counter">0 defeitos</span>
+</div>
+<br>
+<div class="preview"><video id="video" autoplay playsinline></video><div class="scan" id="scanline"></div></div>
+<br>
+<div class="row">
+<button class="primary" onclick="capture()">📸 Analisar foto</button>
+<button onclick="stopCamera()">Parar</button>
+</div>
+<canvas id="canvas" class="hidden"></canvas>
+<div id="results"></div>
+<br>
+<button onclick="finishInspection()">✅ Finalizar inspeção</button>
+</section>
+
+<section class="card hidden" id="report">
+<h3>Relatório da inspeção</h3>
+<div id="summary"></div>
+<button class="primary" onclick="saveReport()">💾 Salvar relatório no celular</button>
+<button onclick="location.reload()">Nova inspeção</button>
+</section>
+<div class="footer">Protótipo TanqueVision IA • A detecção atual é uma simulação de IA. Para diagnóstico real, conectaremos um modelo de visão treinado com fotos dos seus tanques.</div>
+</main>
+</div>
+
+<script>
+let stream=null, defects=[], frames=0, inspection={};
+
+async function startInspection(){
+ inspection={project:project.value||'Sem projeto',tank:tank.value||'Sem número',type:type.value,date:new Date()};
+ setup.classList.add('hidden'); scanner.classList.remove('hidden');
+ try{
+  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
+  video.srcObject=stream; status.textContent='🟢 Scanner ativo';
+ }catch(e){
+  status.textContent='⚠️ Câmera indisponível';
+  results.innerHTML='<div class="result warn">Permita o acesso à câmera. Se estiver usando um arquivo HTML local, abra por HTTPS ou localhost.</div>';
+ }
+}
+
+function capture(){
+ if(!stream){return}
+ frames++;
+ const ctx=canvas.getContext('2d');
+ canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+ ctx.drawImage(video,0,0,canvas.width,canvas.height);
+ /*
+  PONTO DE INTEGRAÇÃO DA IA:
+  Aqui a imagem poderá ser enviada para um modelo de visão.
+  O protótipo usa uma análise demonstrativa até o modelo ser conectado.
+ */
+ const demo=Math.random();
+ let item;
+ if(demo>.62){
+   item={id:Date.now(),kind:'Possível falha de pintura',confidence:Math.round(82+Math.random()*16),time:new Date(),image:canvas.toDataURL('image/jpeg',.78)};
+   defects.push(item); renderDefects();
+ }else{
+   results.insertAdjacentHTML('afterbegin','<div class="result"><b>🟢 Área analisada</b><br><small>Nenhuma anomalia aparente no modo demonstrativo.</small></div>');
+ }
+ counter.textContent=defects.length+' defeito'+(defects.length===1?'':'s');
+}
+
+function renderDefects(){
+ results.innerHTML=defects.slice().reverse().map((d,i)=>`
+ <div class="result bad">
+ <b>🔴 ${d.kind}</b><br>
+ Confiança estimada: <b>${d.confidence}%</b><br>
+ <small>${d.time.toLocaleTimeString('pt-BR')}</small><br>
+ <img src="${d.image}" style="width:100%;margin-top:9px;border-radius:9px">
+ </div>`).join('');
+}
+
+function stopCamera(){
+ if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+ status.textContent='⏸️ Câmera parada';
+}
+
+function finishInspection(){
+ stopCamera(); scanner.classList.add('hidden'); report.classList.remove('hidden');
+ summary.innerHTML=`
+ <p><b>Projeto:</b> ${esc(inspection.project)}</p>
+ <p><b>Tanque:</b> ${esc(inspection.tank)}</p>
+ <p><b>Tipo:</b> ${esc(inspection.type)}</p>
+ <p><b>Data:</b> ${inspection.date.toLocaleString('pt-BR')}</p>
+ <p><b>Áreas analisadas:</b> ${frames}</p>
+ <p><b>Defeitos registrados:</b> ${defects.length}</p>
+ <hr><h3>${defects.length?'🔴 REQUER AVALIAÇÃO':'🟢 SEM DEFEITOS REGISTRADOS'}</h3>`;
+}
+
+function saveReport(){
+ const data={inspection,defects,generatedAt:new Date().toISOString()};
+ const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+ a.download='relatorio-tanque-'+(inspection.tank||'sem-numero')+'.json';a.click();
+ URL.revokeObjectURL(a.href);
+}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+</script>
+</body>
+</html>
